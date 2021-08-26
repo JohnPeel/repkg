@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "ppf",
+    "pkg",
+    "luadec",
+    "dds",
+    "repkg"
+]
