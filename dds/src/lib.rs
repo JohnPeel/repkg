@@ -35,7 +35,7 @@ pub const BUMPDUDV: PixelFormatFlags = PixelFormatFlags::BUMPDUDV;
 pub const BUMPLUMINANCE: PixelFormatFlags = PixelFormatFlags::BUMPLUMINANCE;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelFormat {
     _size: u32,
     pub flags: PixelFormatFlags,
@@ -164,13 +164,6 @@ impl PixelFormat {
             b_bit_mask: 0,
             a_bit_mask: 0,
         }
-    }
-}
-
-impl From<(PixelFormatFlags, u32, u32, u32, u32, u32)> for PixelFormat {
-    #[inline]
-    fn from(tuple: (PixelFormatFlags, u32, u32, u32, u32, u32)) -> Self {
-        PixelFormat::from_tuple(tuple)
     }
 }
 
