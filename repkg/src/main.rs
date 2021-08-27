@@ -462,7 +462,7 @@ fn main() -> Result<(), BoxError> {
             }
 
             for (path, data) in ppf.variables {
-                write_file(&output.join(format!("variables/{}.lua", path.replace("\\", "/"))), data)?;
+                write_file(&output.join(format!("variables/{}.lua", path.replace("\\", "/").replace(".", "/"))), data)?;
             }
 
             for (index, Script { path, data }) in ppf.scripts.into_iter().enumerate() {
