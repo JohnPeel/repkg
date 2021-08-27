@@ -81,15 +81,14 @@ mod parser {
     }
 
     pub fn parse_file_record(input: &[u8]) -> IResult<&[u8], FileRecord> {
-        let (input, (_, file_type_offset, _, file_name_offset, file_data_offset, file_data_size)) =
-            tuple((
-                verify(le_u8, |b| *b == 0),
-                le_u16,
-                verify(le_u8, |b| *b == 0),
-                le_u32,
-                le_u32,
-                le_u32,
-            ))(input)?;
+        let (input, (_, file_type_offset, _, file_name_offset, file_data_offset, file_data_size)) = tuple((
+            verify(le_u8, |b| *b == 0),
+            le_u16,
+            verify(le_u8, |b| *b == 0),
+            le_u32,
+            le_u32,
+            le_u32,
+        ))(input)?;
 
         Ok((
             input,
@@ -107,16 +106,15 @@ mod parser {
     }
 
     pub fn parse_directory_record(input: &[u8]) -> IResult<&[u8], DirectoryRecord> {
-        let (input, (character, _, link_1, link_2, record_id, start_file_index, end_file_index)) =
-            tuple((
-                le_u8,
-                verify(le_u8, |b| *b == 0),
-                le_u16,
-                le_u16,
-                le_u16,
-                le_u16,
-                le_u16,
-            ))(input)?;
+        let (input, (character, _, link_1, link_2, record_id, start_file_index, end_file_index)) = tuple((
+            le_u8,
+            verify(le_u8, |b| *b == 0),
+            le_u16,
+            le_u16,
+            le_u16,
+            le_u16,
+            le_u16,
+        ))(input)?;
 
         Ok((
             input,
@@ -136,10 +134,7 @@ mod parser {
     }
 
     pub fn parse_zstr(input: &[u8]) -> IResult<&[u8], &str> {
-        map_res(
-            terminated(take_until("\0"), tag("\0")),
-            core::str::from_utf8,
-        )(input)
+        map_res(terminated(take_until("\0"), tag("\0")), core::str::from_utf8)(input)
     }
 }
 
@@ -157,14 +152,12 @@ pub struct Zpkg {
 
 impl Zpkg {
     pub fn from_slice(input: &[u8]) -> Result<Zpkg, BoxError> {
-        let (input, header) = parser::parse_header(input)
-            .map_err::<BoxError, _>(|_err| "Unable to parse pkg header.".into())?;
+        let (input, header) =
+            parser::parse_header(input).map_err::<BoxError, _>(|_err| "Unable to parse pkg header.".into())?;
 
         let (file_records, input) = input.split_at(header.directory_records_offset - 512);
-        let (directory_records, input) =
-            input.split_at(header.name_directory_offset - header.directory_records_offset);
-        let (name_directory, input) =
-            input.split_at(header.file_type_directory_offset - header.name_directory_offset);
+        let (directory_records, input) = input.split_at(header.name_directory_offset - header.directory_records_offset);
+        let (name_directory, input) = input.split_at(header.file_type_directory_offset - header.name_directory_offset);
         let (file_type_directory, file_data) =
             input.split_at(header.file_data_offset - header.file_type_directory_offset);
 
@@ -187,15 +180,11 @@ impl Zpkg {
                 if link != 0 {
                     let other = directory_records.get_mut(link).unwrap();
                     if !directory_name.is_empty() {
-                        other
-                            .characters
-                            .splice(0..0, directory_name.iter().cloned());
+                        other.characters.splice(0..0, directory_name.iter().cloned());
                     } else {
                         other.characters.splice(
                             0..0,
-                            (&record.characters[..record.characters.len() - 1])
-                                .iter()
-                                .cloned(),
+                            (&record.characters[..record.characters.len() - 1]).iter().cloned(),
                         );
                     }
                 }
@@ -209,9 +198,7 @@ impl Zpkg {
                     directory_map.insert(index, directory_name.iter().skip(1).collect());
                 }
 
-                if let Some(parser::DirectoryRecord { characters, .. }) =
-                    directory_records.get(index + 1)
-                {
+                if let Some(parser::DirectoryRecord { characters, .. }) = directory_records.get(index + 1) {
                     if characters.contains(&'\x02') {
                         directory_name.clear();
                     }

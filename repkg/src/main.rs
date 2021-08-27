@@ -67,9 +67,7 @@ fn decompress(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
 
     let mut buffer = Vec::with_capacity(decompressed_size as usize);
     let mut decoder = ZlibDecoder::new(compressed_data);
-    decoder
-        .read_to_end(&mut buffer)
-        .expect("Unable to decode zlib.");
+    decoder.read_to_end(&mut buffer).expect("Unable to decode zlib.");
     assert_eq!(decompressed_size as usize, buffer.len());
 
     Ok((input, buffer))
@@ -168,6 +166,34 @@ fn read_file(path: &Path) -> Result<Vec<u8>, BoxError> {
     Ok(buffer)
 }
 
+fn write_file(path: &Path, data: &[u8]) -> Result<(), BoxError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut index = 0;
+    let mut path = path.to_path_buf();
+    while path.exists() {
+        let file_name = path
+            .file_name()
+            .and_then(|file_name| file_name.to_str())
+            .map(|str| str.to_string())
+            .ok_or_else::<BoxError, _>(|| "Unable to convert file name to String.".into())?;
+        let file_ext_start = file_name.rfind('.').unwrap();
+        path = path.with_file_name(format!(
+            "{}.{}{}",
+            &file_name[..file_ext_start],
+            index,
+            &file_name[file_ext_start..]
+        ));
+        index += 1;
+    }
+
+    let mut file = BufWriter::new(File::create(path)?);
+    file.write_all(data)?;
+    Ok(())
+}
+
 fn main() -> Result<(), BoxError> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -189,15 +215,13 @@ fn main() -> Result<(), BoxError> {
 
             let data = read_file(&input)?;
 
-            let (_, data) =
-                decompress(&data).map_err::<BoxError, _>(|_err| "Unable to decompress".into())?;
+            let (_, data) = decompress(&data).map_err::<BoxError, _>(|_err| "Unable to decompress".into())?;
             let mut file = BufWriter::new(File::create(output)?);
             file.write_all(&data)?;
         }
         SubCommand::ExtractPkg { input, output } => {
             let output = output.unwrap_or_else(|| {
                 let mut path = PathBuf::new();
-                path.push(".");
                 path.push("output");
                 path
             });
@@ -205,25 +229,14 @@ fn main() -> Result<(), BoxError> {
             std::fs::create_dir_all(&output)?;
 
             let data = read_file(&input)?;
-
             let zpkg = Zpkg::from_slice(&data)?;
 
             for ZpkgFile { path, data } in zpkg.files {
-                let mut output = output.clone();
-                if path.starts_with('/') {
-                    output.push(&path[1..path.len() - 1]);
-                } else {
-                    output.push(&path);
-                }
-
-                if let Some(parent) = output.parent() {
-                    std::fs::create_dir_all(parent).map_err::<BoxError, _>(|_err| {
-                        format!("Unable to create directories for \"{}\"", path).into()
-                    })?;
-                }
-
-                let mut file = File::create(output)?;
-                file.write_all(&data)?;
+                let path = match path {
+                    _ if path.starts_with('/') => &path[1..path.len() - 1],
+                    _ => &path,
+                };
+                write_file(&output.join(path), &data)?;
             }
         }
         SubCommand::CreatePpf { input, output } => {
@@ -255,14 +268,7 @@ fn main() -> Result<(), BoxError> {
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
-                .filter(|path| {
-                    !path
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .starts_with("frame_")
-                })
+                .filter(|path| !path.file_name().unwrap().to_str().unwrap().starts_with("frame_"))
                 .collect();
 
             log::info!("Texture count: {}", textures.len());
@@ -286,9 +292,8 @@ fn main() -> Result<(), BoxError> {
                 }
 
                 let textures = if game_texture.is_dir() {
-                    let metadata: AnimationInfo = serde_json::from_reader(BufReader::new(
-                        File::open(game_texture.join("metadata.json"))?,
-                    ))?;
+                    let metadata: AnimationInfo =
+                        serde_json::from_reader(BufReader::new(File::open(game_texture.join("metadata.json"))?))?;
 
                     buffer.extend_from_slice(&(metadata.frame_count as u32).to_le_bytes());
                     buffer.extend_from_slice(&metadata.start_frame.to_le_bytes());
@@ -404,127 +409,71 @@ fn main() -> Result<(), BoxError> {
         SubCommand::ExtractPpf { input, output } => {
             let output = output.unwrap_or_else(|| {
                 let mut path = PathBuf::new();
-                path.push(".");
                 path.push("output");
                 path.push(input.file_name().unwrap());
                 path
             });
 
-            log::info!("input = {:?}", input);
-            log::info!("output = {:?}", output);
-
             std::fs::create_dir_all(&output)?;
 
             let data = read_file(&input)?;
-
             let ppf = Ppf::from_slice(&data)?;
 
             for (index, game_texture) in ppf.game_textures.into_iter().enumerate() {
-                let mut path = output.clone();
-                path.push("textures");
-                if let Some(texture_path) = game_texture.path {
-                    path.push(texture_path.replace("\\", "/"));
-                } else {
-                    path.push(format!("textures/texture_{}.dds", index));
-                }
+                let path = match game_texture.path {
+                    Some(path) => path.replace("\\", "/"),
+                    None => format!("texture_{}.dds", index),
+                };
+                let output = output.join(format!("textures/{}", path));
 
                 let texture_count = game_texture.textures.len();
                 if texture_count > 1 {
-                    let mut path = path.clone();
-                    path.push("metadata.json");
-
-                    if let Some(parent) = path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-
-                    let animation_info =
-                        serde_json::to_vec_pretty(&game_texture.animation_info.unwrap())?;
-
-                    let mut writer = BufWriter::new(File::create(path)?);
-                    writer.write_all(&animation_info)?;
+                    write_file(
+                        &output.join("metadata.json"),
+                        &serde_json::to_vec_pretty(&game_texture.animation_info.unwrap())?,
+                    )?;
                 }
 
                 for (index, texture) in game_texture.textures.into_iter().enumerate() {
-                    let mut path = path.clone();
+                    let output = if texture_count > 1 {
+                        output.join(format!("frame_{}.dds", index))
+                    } else {
+                        output.clone()
+                    };
 
-                    if texture_count > 1 {
-                        path.push(format!("frame_{}.dds", index));
-                    }
-
-                    if let Some(parent) = path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-
-                    let mut writer = BufWriter::new(File::create(path)?);
-                    writer.write_all(&dds::MAGIC.to_le_bytes())?;
-                    writer.write_all(&texture.dds_header()?)?;
+                    let mut buffer = Vec::with_capacity(4 + size_of::<dds::Header>() + texture.texture.len());
+                    buffer.extend_from_slice(&dds::MAGIC.to_le_bytes());
+                    buffer.extend_from_slice(&texture.dds_header()?);
                     if let Some(palette) = texture.palette {
                         for item in palette {
                             let mut bytes = item.to_le_bytes();
                             bytes.swap(1, 3);
-                            writer.write_all(&bytes)?;
+                            buffer.extend_from_slice(&bytes);
                         }
                     }
-                    writer.write_all(texture.texture)?;
+                    buffer.extend_from_slice(texture.texture);
+
+                    write_file(&output, &buffer)?;
                 }
             }
 
-            for (mesh_path, mesh_data) in ppf.meshes {
-                let mut path = output.clone();
-                path.push("meshes");
-                path.push(mesh_path.replace("\\", "/"));
-
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-
-                let mut file = BufWriter::new(File::create(path)?);
-                file.write_all(mesh_data)?;
+            for (path, data) in ppf.meshes {
+                write_file(&output.join(format!("meshes/{}", path.replace("\\", "/"))), data)?;
             }
 
-            for (variable_path, variable_data) in ppf.variables {
-                let mut path = output.clone();
-                path.push(format!(
-                    "variables/{}.lua",
-                    variable_path.replace("\\", "/")
-                ));
-
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-
-                let mut file = BufWriter::new(File::create(path)?);
-                file.write_all(variable_data)?;
+            for (path, data) in ppf.variables {
+                write_file(&output.join(format!("variables/{}.lua", path.replace("\\", "/"))), data)?;
             }
 
             for (index, Script { path, data }) in ppf.scripts.into_iter().enumerate() {
-                let mut output = output.clone();
-                output.push("scripts");
-                if let Some(script_path) = path {
-                    output.push(script_path.replace("\\", "/"));
-                } else {
-                    output.push(format!("scripts/script_{}.lua", index));
-                }
-
-                if let Some(parent) = output.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-
-                let mut file = BufWriter::new(File::create(output)?);
-                file.write_all(data)?;
+                let path = match path {
+                    Some(path) => path.replace("\\", "/"),
+                    None => format!("script.{}.lua", index),
+                };
+                write_file(&output.join(path), data)?;
             }
 
-            {
-                let mut path = output;
-                path.push("domain.bin");
-
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-
-                let mut file = BufWriter::new(File::create(path)?);
-                file.write_all(ppf.domain)?;
-            }
+            write_file(&output.join("domain.bin"), ppf.domain)?;
         }
     }
 

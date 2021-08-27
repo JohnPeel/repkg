@@ -20,8 +20,8 @@ mod parser {
         combinator::{map_res, verify},
         multi::many_m_n,
         number::complete::{
-            be_f32, be_f64, be_i16, be_i32, be_u16, be_u32, be_u64, le_f32, le_f64, le_i16, le_i32,
-            le_u16, le_u32, le_u64, le_u8,
+            be_f32, be_f64, be_i16, be_i32, be_u16, be_u32, be_u64, le_f32, le_f64, le_i16, le_i32, le_u16, le_u32,
+            le_u64, le_u8,
         },
         IResult,
     };
@@ -152,8 +152,7 @@ mod parser {
                 Call | TailCall => AB,
                 PushNil | Pop => Unsigned,
                 PushInt => Signed,
-                PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal
-                | GetGlobal => Unsigned,
+                PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal | GetGlobal => Unsigned,
                 GetTable => None,
                 GetDotted | GetIndexed | PushSelf | CreateTable | SetLocal | SetGlobal => Unsigned,
                 SetTable | SetList => AB,
@@ -164,8 +163,7 @@ mod parser {
                 Concat => Unsigned,
                 Minus | Not => None,
                 JumpNotEqual | JumpEqual | JumpLessThan | JumpLessThanEqual | JumpGreaterThan
-                | JumpGreaterThanEqual | JumpIfTrue | JumpIfFalse | JumpOnTrue | JumpOnFalse
-                | Jump => Signed,
+                | JumpGreaterThanEqual | JumpIfTrue | JumpIfFalse | JumpOnTrue | JumpOnFalse | Jump => Signed,
                 PushNilJump => None,
                 ForPrep | ForLoop | LForPrep | LForLoop => Signed,
                 Closure => AB,
@@ -181,8 +179,8 @@ mod parser {
                 TailCall => None,
                 PushNil => Delta,
                 Pop => None,
-                PushInt | PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal
-                | GetGlobal | GetTable | GetDotted | GetIndexed => Constant(1),
+                PushInt | PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal | GetGlobal
+                | GetTable | GetDotted | GetIndexed => Constant(1),
                 PushSelf => Constant(2),
                 CreateTable => Constant(1),
                 SetLocal | SetGlobal => None,
@@ -191,8 +189,8 @@ mod parser {
                 Concat => Constant(1),
                 Minus | Not => Constant(1),
                 JumpNotEqual | JumpEqual | JumpLessThan | JumpLessThanEqual | JumpGreaterThan
-                | JumpGreaterThanEqual | JumpIfTrue | JumpIfFalse | JumpOnTrue | JumpOnFalse
-                | Jump | PushNilJump | ForPrep | ForLoop => None,
+                | JumpGreaterThanEqual | JumpIfTrue | JumpIfFalse | JumpOnTrue | JumpOnFalse | Jump | PushNilJump
+                | ForPrep | ForLoop => None,
                 LForPrep => Constant(2),
                 LForLoop => None,
                 Closure => Constant(1),
@@ -207,8 +205,7 @@ mod parser {
                 Return | Call | TailCall => Delta,
                 PushNil => None,
                 Pop => Delta,
-                PushInt | PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal
-                | GetGlobal => None,
+                PushInt | PushString | PushNumber | PushNegativeNumber | PushUpValue | GetLocal | GetGlobal => None,
                 GetTable => Constant(2),
                 GetDotted | GetIndexed | PushSelf => Constant(1),
                 CreateTable => None,
@@ -245,8 +242,7 @@ mod parser {
     impl Instruction {
         #[inline]
         pub fn op(&self) -> OpCode {
-            FromPrimitive::from_usize(self.instruction & !((!0) << self.size_op))
-                .expect("Invalid Instruction!")
+            FromPrimitive::from_usize(self.instruction & !((!0) << self.size_op)).expect("Invalid Instruction!")
         }
 
         #[inline]
@@ -329,9 +325,7 @@ mod parser {
 
     fn header(input: &[u8]) -> IResult<&[u8], Header<'_>> {
         let (input, id_chunk) = verify(le_u8, |x| *x == 0x1b)(input)?;
-        let (input, signature) = verify(map_res(take(3usize), std::str::from_utf8), |x: &str| {
-            x == "Lua"
-        })(input)?;
+        let (input, signature) = verify(map_res(take(3usize), std::str::from_utf8), |x: &str| x == "Lua")(input)?;
         let (input, version) = verify(le_u8, |x| *x == 0x40)(input)?;
         let (input, endianess) = le_u8(input)?;
         let (input, sizeof_int) = le_u8(input)?;
@@ -419,14 +413,7 @@ mod parser {
     fn string<'a>(input: &'a [u8], header: Header<'a>) -> IResult<&'a [u8], &'a str> {
         let (input, length) = size_t(input, header)?;
         let (input, str) = map_res(take(length), std::str::from_utf8)(input)?;
-        Ok((
-            input,
-            if length > 0 {
-                &str[..str.len() - 1]
-            } else {
-                str
-            },
-        ))
+        Ok((input, if length > 0 { &str[..str.len() - 1] } else { str }))
     }
 
     fn local<'a>(input: &'a [u8], header: Header<'a>) -> IResult<&'a [u8], Local<'a>> {
@@ -448,17 +435,11 @@ mod parser {
 
     fn constants<'a>(input: &'a [u8], header: Header<'a>) -> IResult<&'a [u8], Constants<'a>> {
         let (input, count) = int(input, header)?;
-        let (input, strings) = many_m_n(count as usize, count as usize, |input| {
-            string(input, header)
-        })(input)?;
+        let (input, strings) = many_m_n(count as usize, count as usize, |input| string(input, header))(input)?;
         let (input, count) = int(input, header)?;
-        let (input, numbers) = many_m_n(count as usize, count as usize, |input| {
-            number(input, header)
-        })(input)?;
+        let (input, numbers) = many_m_n(count as usize, count as usize, |input| number(input, header))(input)?;
         let (input, count) = int(input, header)?;
-        let (input, functions) = many_m_n(count as usize, count as usize, |input| {
-            function(input, header)
-        })(input)?;
+        let (input, functions) = many_m_n(count as usize, count as usize, |input| function(input, header))(input)?;
 
         Ok((
             input,
@@ -472,9 +453,7 @@ mod parser {
 
     fn code<'a>(input: &'a [u8], header: Header<'a>) -> IResult<&'a [u8], Vec<Instruction>> {
         let (input, count) = int(input, header)?;
-        let (input, code) = many_m_n(count as usize, count as usize, |input| {
-            instruction(input, header)
-        })(input)?;
+        let (input, code) = many_m_n(count as usize, count as usize, |input| instruction(input, header))(input)?;
         assert!(code[code.len() - 1].op() == OpCode::End);
         Ok((input, code))
     }
@@ -541,11 +520,7 @@ mod code_generation {
     impl Node {
         #[allow(unused)]
         pub fn instruction_count(&self) -> usize {
-            self.children
-                .iter()
-                .map(|node| node.instruction_count())
-                .sum::<usize>()
-                + 1
+            self.children.iter().map(|node| node.instruction_count()).sum::<usize>() + 1
         }
     }
 
@@ -561,10 +536,7 @@ mod code_generation {
                 instruction,
                 instruction.pop_count(),
                 instruction.push_count(),
-                unused
-                    .iter()
-                    .map(|node| node.instruction)
-                    .collect::<Vec<Instruction>>()
+                unused.iter().map(|node| node.instruction).collect::<Vec<Instruction>>()
             );
 
             let push_count = instruction.push_count();
@@ -588,10 +560,7 @@ mod code_generation {
                 children.extend(to_nodes(jump, constants).into_iter());
             }
 
-            let node = Node {
-                instruction,
-                children,
-            };
+            let node = Node { instruction, children };
 
             if push_count != 0 {
                 unused.push_back(node);
@@ -616,10 +585,7 @@ mod code_generation {
         use OpCode::*;
         match instruction.op() {
             End => "".to_string(),
-            Return => format!(
-                "return {}",
-                children.into_iter().collect::<Vec<String>>().join(", ")
-            ),
+            Return => format!("return {}", children.into_iter().collect::<Vec<String>>().join(", ")),
             Call => {
                 let mut args = Vec::new();
                 for i in 0..children.len() - 1 {
@@ -628,9 +594,7 @@ mod code_generation {
                 format!("{}({})", children.last().unwrap(), args.join(", "))
             }
             //TailCall
-            PushNil => (0..instruction.u())
-                .map(|_| "nil".to_owned())
-                .collect::<String>(),
+            PushNil => (0..instruction.u()).map(|_| "nil".to_owned()).collect::<String>(),
             //Pop
             PushInt => instruction.s().to_string(),
             PushString => format!("\"{}\"", constants.strings.get(instruction.u()).unwrap()),
@@ -708,12 +672,7 @@ mod code_generation {
                 let op = if op == JumpIfTrue { "not " } else { "" };
                 let (params, body) = children.split_at(1);
                 let body: Vec<&str> = body.iter().flat_map(|line| line.split('\n')).collect();
-                format!(
-                    "if ({} {}) then\n  {}\nend",
-                    op,
-                    params[0],
-                    body.join("\n  ")
-                )
+                format!("if ({} {}) then\n  {}\nend", op, params[0], body.join("\n  "))
             }
 
             //JumpOnTrue,
@@ -730,11 +689,7 @@ mod code_generation {
                 for i in 0..function.param_count {
                     args.push(format!("local_{}", i));
                 }
-                format!(
-                    "function({})\n{}\nend",
-                    args.join(", "),
-                    children.join("\n")
-                )
+                format!("function({})\n{}\nend", args.join(", "), children.join("\n"))
             }
             _ => todo!("{:?} ({:?})", instruction, children),
         }
@@ -765,8 +720,7 @@ fn main() -> Result<(), BoxError> {
         input
     };
 
-    let (_, (_header, function)) =
-        parser::lua(&input).map_err(|err| -> BoxError { format!("{:#?}", err).into() })?;
+    let (_, (_header, function)) = parser::lua(&input).map_err(|err| -> BoxError { format!("{:#?}", err).into() })?;
 
     log::info!("\n{:#?}", function);
 

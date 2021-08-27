@@ -38,9 +38,7 @@ pub(crate) mod parser {
 
                     for _ in 0..mipmap_levels {
                         let mipmap_size = if compressed {
-                            ((width + 3) >> 2).max(1)
-                                * ((height + 3) >> 2).max(1)
-                                * format.block_size()
+                            ((width + 3) >> 2).max(1) * ((height + 3) >> 2).max(1) * format.block_size()
                         } else {
                             width * height * format.bytes_per_pixel()
                         };
@@ -52,13 +50,7 @@ pub(crate) mod parser {
                     size
                 }
                 TextureType::Cubemap => {
-                    6 * calculate_texture_size(
-                        format,
-                        TextureType::Bitmap,
-                        width,
-                        height,
-                        mipmap_levels,
-                    )
+                    6 * calculate_texture_size(format, TextureType::Bitmap, width, height, mipmap_levels)
                 }
                 TextureType::DepthBuffer => unimplemented!(),
                 TextureType::VolumeMap => unimplemented!(),
@@ -66,26 +58,24 @@ pub(crate) mod parser {
         }
 
         fn texture(input: &[u8]) -> IResult<&[u8], Texture<'_>> {
-            let (
-                input,
-                (_, format, type_, flags, width, height, mut mipmap_levels, _, _, _, _lock_count),
-            ) = tuple((
-                le_u32,
-                map_res(le_u32, |format| {
-                    FromPrimitive::from_u32(format).ok_or("Invalid TextureFormat")
-                }),
-                map_res(le_u32, |type_| {
-                    FromPrimitive::from_u32(type_).ok_or("Invalid TextureType")
-                }),
-                le_u32,
-                util::le_u32_as_usize,
-                util::le_u32_as_usize,
-                util::le_u32_as_usize,
-                le_u32,
-                le_u32,
-                le_u32,
-                le_u32,
-            ))(input)?;
+            let (input, (_, format, type_, flags, width, height, mut mipmap_levels, _, _, _, _lock_count)) =
+                tuple((
+                    le_u32,
+                    map_res(le_u32, |format| {
+                        FromPrimitive::from_u32(format).ok_or("Invalid TextureFormat")
+                    }),
+                    map_res(le_u32, |type_| {
+                        FromPrimitive::from_u32(type_).ok_or("Invalid TextureType")
+                    }),
+                    le_u32,
+                    util::le_u32_as_usize,
+                    util::le_u32_as_usize,
+                    util::le_u32_as_usize,
+                    le_u32,
+                    le_u32,
+                    le_u32,
+                    le_u32,
+                ))(input)?;
             assert!(width > 0);
             assert!(height > 0);
 
@@ -111,13 +101,7 @@ pub(crate) mod parser {
                 (input, None)
             };
 
-            let (input, texture) = take(calculate_texture_size(
-                format,
-                type_,
-                width,
-                height,
-                mipmap_levels,
-            ))(input)?;
+            let (input, texture) = take(calculate_texture_size(format, type_, width, height, mipmap_levels))(input)?;
 
             Ok((
                 input,
@@ -135,21 +119,19 @@ pub(crate) mod parser {
         }
 
         fn animation_info(input: &[u8]) -> IResult<&[u8], AnimationInfo> {
-            let (
-                input,
-                (frame_count, start_frame, loop_frame, _, frame_rate, play_mode, playing, _),
-            ) = tuple((
-                util::le_u32_as_usize,
-                le_f32,
-                le_f32,
-                le_f32,
-                le_f32,
-                map_res(le_u32, |play_mode| {
-                    FromPrimitive::from_u32(play_mode).ok_or("Unsupported PlayMode.")
-                }),
-                util::le_u8_as_bool,
-                take(3usize),
-            ))(input)?;
+            let (input, (frame_count, start_frame, loop_frame, _, frame_rate, play_mode, playing, _)) =
+                tuple((
+                    util::le_u32_as_usize,
+                    le_f32,
+                    le_f32,
+                    le_f32,
+                    le_f32,
+                    map_res(le_u32, |play_mode| {
+                        FromPrimitive::from_u32(play_mode).ok_or("Unsupported PlayMode.")
+                    }),
+                    util::le_u8_as_bool,
+                    take(3usize),
+                ))(input)?;
             assert!(frame_count > 0);
             assert!(start_frame >= 0.0);
             assert!(loop_frame >= 0.0);
@@ -232,12 +214,9 @@ pub(crate) mod parser {
     }
 
     fn version(input: &[u8]) -> IResult<&[u8], Version> {
-        map_res(
-            opt(preceded(verify(le_u16, |b| b == &0xFDFD), le_u16)),
-            |version| {
-                FromPrimitive::from_u16(version.unwrap_or(0)).ok_or("Unsupported PPAK version.")
-            },
-        )(input)
+        map_res(opt(preceded(verify(le_u16, |b| b == &0xFDFD), le_u16)), |version| {
+            FromPrimitive::from_u16(version.unwrap_or(0)).ok_or("Unsupported PPAK version.")
+        })(input)
     }
 
     fn game_textures(input: &[u8], version: Version) -> IResult<&[u8], Vec<GameTexture<'_>>> {
@@ -251,19 +230,14 @@ pub(crate) mod parser {
         many_m_n(count, count, game_texture)(input)
     }
 
-    fn languages<'a>(
-        input: &'a [u8],
-        version: Version,
-    ) -> IResult<&'a [u8], Vec<(Language, Vec<GameTexture<'a>>)>> {
+    fn languages<'a>(input: &'a [u8], version: Version) -> IResult<&'a [u8], Vec<(Language, Vec<GameTexture<'a>>)>> {
         let language = |input: &'a [u8]| -> IResult<&'a [u8], (Language, Vec<GameTexture<'a>>)> {
             let (input, _) = verify(le_u16, |b| b == &0xFFFF)(input)?;
             let (input, language) = map_res(le_u16, |language| {
                 FromPrimitive::from_u16(language).ok_or("Unsupported Language.")
             })(input)?;
             log::info!("language = {:?}", language);
-            let (input, block_size) = map_res(le_u32, |size| {
-                Result::<usize, Infallible>::Ok(size as usize)
-            })(input)?;
+            let (input, block_size) = map_res(le_u32, |size| Result::<usize, Infallible>::Ok(size as usize))(input)?;
             log::trace!("language_size = {}", block_size);
 
             let block_start = input.len();
@@ -344,10 +318,9 @@ pub(crate) mod parser {
         let (input, languages) = languages(input, version)?;
         let (input, game_textures) = game_textures(input, version)?;
         let (input, meshes) = meshes(input)?;
-        let (input, scripts_version) = map_res(
-            opt(preceded(verify(le_u16, |b| b == &0xFCFC), le_u16)),
-            |version| Result::<_, Infallible>::Ok(version.unwrap_or(0)),
-        )(input)?;
+        let (input, scripts_version) = map_res(opt(preceded(verify(le_u16, |b| b == &0xFCFC), le_u16)), |version| {
+            Result::<_, Infallible>::Ok(version.unwrap_or(0))
+        })(input)?;
         log::info!("scripts version = 0x{:04X?}", scripts_version);
         let (input, variables) = variables(input)?;
         let (input, scripts) = scripts(input, scripts_version)?;
@@ -512,8 +485,7 @@ pub struct Ppf<'a> {
 
 impl<'a> Ppf<'a> {
     pub fn from_slice(slice: &'a [u8]) -> Result<Ppf<'a>, BoxError> {
-        let (remaining, ppf) =
-            parser::ppf(slice).map_err::<BoxError, _>(|_err| "Unable to parse ppf.".into())?;
+        let (remaining, ppf) = parser::ppf(slice).map_err::<BoxError, _>(|_err| "Unable to parse ppf.".into())?;
         assert_eq!(0, remaining.len());
         Ok(ppf)
     }

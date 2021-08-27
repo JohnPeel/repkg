@@ -79,32 +79,24 @@ impl PixelFormat {
 
     pub const A8R8G8B8: PixelFormat =
         PixelFormat::from_tuple((RGBA, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000));
-    pub const X8R8G8B8: PixelFormat =
-        PixelFormat::from_tuple((RGB, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0));
+    pub const X8R8G8B8: PixelFormat = PixelFormat::from_tuple((RGB, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0));
     pub const A8B8G8R8: PixelFormat =
         PixelFormat::from_tuple((RGBA, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000));
-    pub const X8B8G8R8: PixelFormat =
-        PixelFormat::from_tuple((RGB, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0));
-    pub const G16R16: PixelFormat =
-        PixelFormat::from_tuple((RGB, 32, 0x0000ffff, 0xffff0000, 0, 0));
+    pub const X8B8G8R8: PixelFormat = PixelFormat::from_tuple((RGB, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0));
+    pub const G16R16: PixelFormat = PixelFormat::from_tuple((RGB, 32, 0x0000ffff, 0xffff0000, 0, 0));
     pub const R5G6B5: PixelFormat = PixelFormat::from_tuple((RGB, 16, 0xf800, 0x07e0, 0x001f, 0));
-    pub const A1R5G5B5: PixelFormat =
-        PixelFormat::from_tuple((RGBA, 16, 0x7c00, 0x03e0, 0x001f, 0x8000));
+    pub const A1R5G5B5: PixelFormat = PixelFormat::from_tuple((RGBA, 16, 0x7c00, 0x03e0, 0x001f, 0x8000));
     pub const X1R5G5B5: PixelFormat = PixelFormat::from_tuple((RGB, 16, 0x7c00, 0x03e0, 0x001f, 0));
-    pub const A4R4G4B4: PixelFormat =
-        PixelFormat::from_tuple((RGBA, 16, 0x0f00, 0x00f0, 0x000f, 0xf000));
+    pub const A4R4G4B4: PixelFormat = PixelFormat::from_tuple((RGBA, 16, 0x0f00, 0x00f0, 0x000f, 0xf000));
     pub const X4R4G4B4: PixelFormat = PixelFormat::from_tuple((RGB, 16, 0x0f00, 0x00f0, 0x000f, 0));
-    pub const R8G8B8: PixelFormat =
-        PixelFormat::from_tuple((RGB, 24, 0xff0000, 0x00ff00, 0x0000ff, 0));
-    pub const A8R3G3B2: PixelFormat =
-        PixelFormat::from_tuple((RGBA, 16, 0x00e0, 0x001c, 0x0003, 0xff00));
+    pub const R8G8B8: PixelFormat = PixelFormat::from_tuple((RGB, 24, 0xff0000, 0x00ff00, 0x0000ff, 0));
+    pub const A8R3G3B2: PixelFormat = PixelFormat::from_tuple((RGBA, 16, 0x00e0, 0x001c, 0x0003, 0xff00));
     pub const R3G3B2: PixelFormat = PixelFormat::from_tuple((RGB, 8, 0xe0, 0x1c, 0x03, 0));
     pub const A4L4: PixelFormat = PixelFormat::from_tuple((LUMINANCEA, 8, 0x0f, 0, 0, 0xf0));
     pub const L8: PixelFormat = PixelFormat::from_tuple((LUMINANCE, 8, 0xff, 0, 0, 0));
     pub const L16: PixelFormat = PixelFormat::from_tuple((LUMINANCE, 16, 0xffff, 0, 0, 0));
     pub const A8L8: PixelFormat = PixelFormat::from_tuple((LUMINANCEA, 16, 0x00ff, 0, 0, 0xff00));
-    pub const A8L8_ALT: PixelFormat =
-        PixelFormat::from_tuple((LUMINANCEA, 8, 0x00ff, 0, 0, 0xff00));
+    pub const A8L8_ALT: PixelFormat = PixelFormat::from_tuple((LUMINANCEA, 8, 0x00ff, 0, 0, 0xff00));
     pub const L8_NVTT1: PixelFormat = PixelFormat::from_tuple((RGB, 8, 0xff, 0, 0, 0));
     pub const L16_NVTT1: PixelFormat = PixelFormat::from_tuple((RGB, 16, 0xffff, 0, 0, 0));
     pub const A8L8_NVTT1: PixelFormat = PixelFormat::from_tuple((RGBA, 16, 0x00ff, 0, 0, 0xff00));
@@ -112,8 +104,7 @@ impl PixelFormat {
     pub const V8U8: PixelFormat = PixelFormat::from_tuple((BUMPDUDV, 16, 0x00ff, 0xff00, 0, 0));
     pub const Q8W8V8U8: PixelFormat =
         PixelFormat::from_tuple((BUMPDUDV, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000));
-    pub const V16U16: PixelFormat =
-        PixelFormat::from_tuple((BUMPDUDV, 32, 0x0000ffff, 0xffff0000, 0, 0));
+    pub const V16U16: PixelFormat = PixelFormat::from_tuple((BUMPDUDV, 32, 0x0000ffff, 0xffff0000, 0, 0));
 
     #[deprecated = "Use DX10 extension to avoid reversal issue."]
     pub const A2R10G10B10: PixelFormat =
@@ -124,8 +115,7 @@ impl PixelFormat {
 
     pub const A2W10V10U10: PixelFormat =
         PixelFormat::from_tuple((BUMPDUDV, 32, 0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000));
-    pub const L6V5U5: PixelFormat =
-        PixelFormat::from_tuple((BUMPLUMINANCE, 16, 0x001f, 0x03e0, 0xfc00, 0));
+    pub const L6V5U5: PixelFormat = PixelFormat::from_tuple((BUMPLUMINANCE, 16, 0x001f, 0x03e0, 0xfc00, 0));
     pub const X8L8V8U8: PixelFormat =
         PixelFormat::from_tuple((BUMPLUMINANCE, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0));
 
@@ -201,10 +191,7 @@ bitflags! {
 }
 
 pub const HEADER_FLAGS_TEXTURE: HeaderFlags = HeaderFlags {
-    bits: HeaderFlags::CAPS.bits
-        | HeaderFlags::HEIGHT.bits
-        | HeaderFlags::WIDTH.bits
-        | HeaderFlags::PIXELFORMAT.bits,
+    bits: HeaderFlags::CAPS.bits | HeaderFlags::HEIGHT.bits | HeaderFlags::WIDTH.bits | HeaderFlags::PIXELFORMAT.bits,
 };
 pub const HEADER_FLAGS_MIPMAP: HeaderFlags = HeaderFlags::MIPMAPCOUNT;
 pub const HEADER_FLAGS_VOLUME: HeaderFlags = HeaderFlags::DEPTH;
