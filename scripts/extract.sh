@@ -14,4 +14,3 @@ find $PSYCHONAUTS_PATH -name '*.ppf' -print0 |
         FILE_NAME=$(basename $FILE)
         cargo run -q --manifest-path=../Cargo.toml --bin=repkg -- extract-ppf "$FILE" --output "$OUTPUT/$FILE_NAME"
     done
-

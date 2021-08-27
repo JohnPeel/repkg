@@ -10,12 +10,12 @@ USAGE:
 
 FLAGS:
     -h, --help       Print help information
-    -v, --verbose    
+    -v, --verbose
     -V, --version    Print version information
 
 SUBCOMMANDS:
-    decompress     
-    extract-pkg    
-    extract-ppf    
+    decompress
+    extract-pkg
+    extract-ppf
     help           Print this message or the help of the given subcommand(s)
 ```
