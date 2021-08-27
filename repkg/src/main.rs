@@ -230,7 +230,6 @@ fn main() -> Result<(), BoxError> {
             let input = input.canonicalize()?;
             let output = output.unwrap_or_else(|| {
                 let mut path = PathBuf::new();
-                path.push(".");
                 path.push(input.file_name().unwrap());
                 path
             });
@@ -252,7 +251,7 @@ fn main() -> Result<(), BoxError> {
 
             writer.write_all(&[0x50, 0x50, 0x41, 0x4B, 0xFD, 0xFD, 0x01, 0x00])?;
 
-            let textures: Vec<PathBuf> = glob::glob(&append_input("**/*.dds"))?
+            let textures: Vec<PathBuf> = glob::glob(&append_input("textures/**/*.dds"))?
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
@@ -280,7 +279,7 @@ fn main() -> Result<(), BoxError> {
                 }
                 buffer.extend_from_slice(&[0; 20]);
 
-                if let Some(path) = game_texture.strip_prefix(&input)?.to_str() {
+                if let Some(path) = game_texture.strip_prefix(&input.join("textures"))?.to_str() {
                     buffer.extend_from_slice(&(path.len() as u16 + 1).to_le_bytes());
                     buffer.extend_from_slice(path.as_bytes());
                     buffer.push(0);
@@ -338,7 +337,7 @@ fn main() -> Result<(), BoxError> {
 
             writer.write_all(b"MPAK")?;
 
-            let meshes: Vec<PathBuf> = glob::glob(&append_input("**/*.plb"))?
+            let meshes: Vec<PathBuf> = glob::glob(&append_input("meshes/**/*.plb"))?
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?;
             log::info!("Mesh count: {}", meshes.len());
@@ -347,7 +346,7 @@ fn main() -> Result<(), BoxError> {
             for mesh in meshes {
                 let data = read_file(&mesh)?;
 
-                if let Some(path) = mesh.strip_prefix(&input)?.to_str() {
+                if let Some(path) = mesh.strip_prefix(&input.join("meshes"))?.to_str() {
                     writer.write_all(&(path.len() as u16 + 1).to_le_bytes())?;
                     writer.write_all(path.as_bytes())?;
                     writer.write_all(&[0x00])?;
@@ -369,9 +368,9 @@ fn main() -> Result<(), BoxError> {
             for variable in variables {
                 let data = read_file(&variable)?;
 
-                if let Some(path) = variable.strip_prefix(&input)?.to_str() {
-                    writer.write_all(&(path.len() as u16 - 14 + 1).to_le_bytes())?;
-                    writer.write_all((&path[10..path.len() - 4]).as_bytes())?;
+                if let Some(path) = variable.strip_prefix(&input.join("variables"))?.to_str() {
+                    writer.write_all(&(path.len() as u16 - 4 + 1).to_le_bytes())?;
+                    writer.write_all((&path[..path.len() - 4]).as_bytes())?;
                     writer.write_all(&[0x00])?;
                 }
 
@@ -388,7 +387,7 @@ fn main() -> Result<(), BoxError> {
             for script in scripts {
                 let data = read_file(&script)?;
 
-                if let Some(path) = script.strip_prefix(&input)?.to_str() {
+                if let Some(path) = script.strip_prefix(&input.join("scripts"))?.to_str() {
                     writer.write_all(&(path.len() as u16 + 1).to_le_bytes())?;
                     writer.write_all(path.as_bytes())?;
                     writer.write_all(&[0x00])?;
@@ -422,6 +421,7 @@ fn main() -> Result<(), BoxError> {
 
             for (index, game_texture) in ppf.game_textures.into_iter().enumerate() {
                 let mut path = output.clone();
+                path.push("textures");
                 if let Some(texture_path) = game_texture.path {
                     path.push(texture_path.replace("\\", "/"));
                 } else {
@@ -471,6 +471,7 @@ fn main() -> Result<(), BoxError> {
 
             for (mesh_path, mesh_data) in ppf.meshes {
                 let mut path = output.clone();
+                path.push("meshes");
                 path.push(mesh_path.replace("\\", "/"));
 
                 if let Some(parent) = path.parent() {
@@ -498,6 +499,7 @@ fn main() -> Result<(), BoxError> {
 
             for (index, Script { path, data }) in ppf.scripts.into_iter().enumerate() {
                 let mut output = output.clone();
+                output.push("scripts");
                 if let Some(script_path) = path {
                     output.push(script_path.replace("\\", "/"));
                 } else {
