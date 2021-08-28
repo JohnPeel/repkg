@@ -221,7 +221,7 @@ pub(crate) mod parser {
 
     fn game_textures(input: &[u8], version: Version) -> IResult<&[u8], Vec<GameTexture<'_>>> {
         let (input, count) = util::le_u16_as_usize(input)?;
-        log::info!("texture_count = {}", count);
+        log::trace!("texture_count = {}", count);
 
         let game_texture = match version {
             Version::V0 => v0::game_texture,
@@ -236,7 +236,7 @@ pub(crate) mod parser {
             let (input, language) = map_res(le_u16, |language| {
                 FromPrimitive::from_u16(language).ok_or("Unsupported Language.")
             })(input)?;
-            log::info!("language = {:?}", language);
+            log::trace!("language = {:?}", language);
             let (input, block_size) = map_res(le_u32, |size| Result::<usize, Infallible>::Ok(size as usize))(input)?;
             log::trace!("language_size = {}", block_size);
 
@@ -263,7 +263,7 @@ pub(crate) mod parser {
     fn meshes(input: &[u8]) -> IResult<&[u8], Vec<(&str, &[u8])>> {
         let (input, _) = tag("MPAK")(input)?;
         let (input, mesh_count) = util::le_u16_as_usize(input)?;
-        log::info!("mesh_count = {}", mesh_count);
+        log::trace!("mesh_count = {}", mesh_count);
         many_m_n(mesh_count, mesh_count, mesh)(input)
     }
 
@@ -282,7 +282,7 @@ pub(crate) mod parser {
 
     fn variables(input: &[u8]) -> IResult<&[u8], Vec<(&str, &[u8])>> {
         let (input, variables_count) = util::le_u16_as_usize(input)?;
-        log::info!("variables count = {}", variables_count);
+        log::trace!("variables count = {}", variables_count);
         many_m_n(variables_count, variables_count, variable)(input)
     }
 
@@ -306,14 +306,14 @@ pub(crate) mod parser {
 
     fn scripts(input: &[u8], version: u16) -> IResult<&[u8], Vec<Script<'_>>> {
         let (input, scripts_count) = util::le_u16_as_usize(input)?;
-        log::info!("scripts count = {}", scripts_count);
+        log::trace!("scripts count = {}", scripts_count);
         many_m_n(scripts_count, scripts_count, |input| script(input, version))(input)
     }
 
     pub fn ppf(input: &[u8]) -> IResult<&[u8], Ppf<'_>> {
         let (input, _) = tag("PPAK")(input)?;
         let (input, version) = version(input)?;
-        log::info!("version = {:?}", version);
+        log::trace!("version = {:?}", version);
 
         let (input, languages) = languages(input, version)?;
         let (input, game_textures) = game_textures(input, version)?;
@@ -321,12 +321,12 @@ pub(crate) mod parser {
         let (input, scripts_version) = map_res(opt(preceded(verify(le_u16, |b| b == &0xFCFC), le_u16)), |version| {
             Result::<_, Infallible>::Ok(version.unwrap_or(0))
         })(input)?;
-        log::info!("scripts version = 0x{:04X?}", scripts_version);
+        log::trace!("scripts version = 0x{:04X?}", scripts_version);
         let (input, variables) = variables(input)?;
         let (input, scripts) = scripts(input, scripts_version)?;
 
-        log::info!("remaining in ppf (domain/scene) = 0x{:08X}", input.len());
-        log::info!(
+        log::trace!("remaining in ppf (domain/scene) = 0x{:08X}", input.len());
+        log::trace!(
             "next {} bytes = {:02X?}",
             input.len().min(10),
             &input[..input.len().min(10)]
@@ -364,6 +364,8 @@ pub enum Language {
     German,
     Nonsense,
 }
+
+pub const DEFAULT_LANGUAGE: Language = Language::English;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
