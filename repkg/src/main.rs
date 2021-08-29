@@ -548,6 +548,7 @@ fn main() -> Result<(), BoxError> {
             });
 
             log::info!("file = {:?}", input);
+            log::warn!("This is still incomplete.");
 
             std::fs::create_dir_all(&output)?;
 
