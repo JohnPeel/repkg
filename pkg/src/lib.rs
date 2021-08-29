@@ -134,7 +134,7 @@ mod parser {
     }
 
     pub fn parse_zstr(input: &[u8]) -> IResult<&[u8], &str> {
-        map_res(terminated(take_until("\0"), tag("\0")), core::str::from_utf8)(input)
+        map_res(take_until("\0"), core::str::from_utf8)(input)
     }
 }
 
