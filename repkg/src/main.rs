@@ -51,6 +51,16 @@ enum SubCommand {
         #[clap(short = 'o', long, parse(from_os_str))]
         output: Option<PathBuf>,
     },
+    ExtractApf {
+        #[clap(parse(from_os_str))]
+        input: PathBuf,
+        #[clap(short = 'o', long, parse(from_os_str))]
+        output: Option<PathBuf>,
+    },
+    ApfInfo {
+        #[clap(parse(from_os_str))]
+        input: PathBuf,
+    },
     MeshInfo {
         #[clap(parse(from_os_str))]
         input: PathBuf,
@@ -267,6 +277,30 @@ mod plb {
         Ok((input, (name, a_lot_of_vecs, some_count)))
     }
 
+    pub fn domain(input: &[u8], version: u32) -> IResult<&[u8], ()> {
+        let (input, name) = le_u32_length_c_string(input)?;
+        log::info!("name = {}", name);
+
+        let (input, bounding_box) = many_m_n(6, 6, le_f32)(input)?;
+        log::info!("bounding_box = {:?}", bounding_box);
+
+        let input = if version > 0x12e {
+            let (input, mesh_magic) = le_u32(input)?;
+            assert_eq!(0x4d455348, mesh_magic);
+            input
+        } else {
+            input
+        };
+
+        let (input, mesh_count) = le_u32_as_usize(input)?;
+        log::info!("mesh_count = {}", mesh_count);
+
+        let (input, _mesh) = mesh(input, version)?;
+        //let (input, meshes) = many_m_n(mesh_count, mesh_count, mesh)(input)?;
+
+        Ok((input, ()))
+    }
+
     pub fn print_mesh_info(input: &[u8]) -> IResult<&[u8], ()> {
         let (input, magic) = le_u32(input)?;
         log::info!("magic = 0x{:x}", magic);
@@ -281,28 +315,7 @@ mod plb {
         let (input, names) = many_m_n(count, count, name)(input)?;
         log::info!("names = {:#?}", names);
 
-        let (input, some_string) = le_u32_length_c_string(input)?;
-        log::info!("some_string = {}", some_string);
-
-        let (input, some_vec3_0) = many_m_n(3, 3, le_f32)(input)?;
-        log::info!("some_vec3_0 = {:?}", some_vec3_0);
-        let (input, some_vec3_1) = many_m_n(3, 3, le_f32)(input)?;
-        log::info!("some_vec3_1 = {:?}", some_vec3_1);
-
-        let (input, _mesh_magic) = if version > 0x12e {
-            let (input, mesh_magic) = le_u32(input)?;
-            log::info!("mesh_magic = 0x{:x}", mesh_magic);
-            assert_eq!(0x4d455348, mesh_magic);
-            (input, Some(mesh_magic))
-        } else {
-            (input, None)
-        };
-
-        let (input, mesh_count) = le_u32_as_usize(input)?;
-        log::info!("mesh_count = {}", mesh_count);
-
-        let (input, _mesh) = mesh(input, version)?;
-        //let (input, meshes) = many_m_n(mesh_count, mesh_count, mesh)(input)?;
+        let (input, _domain) = domain(input, version)?;
 
         log::info!(
             "Next {} bytes = {:x?}",
@@ -311,6 +324,42 @@ mod plb {
         );
 
         Ok((input, ()))
+    }
+}
+
+mod apf {
+    use nom::{
+        bytes::complete::{tag, take, take_until},
+        combinator::{map_res, recognize},
+        multi::many_m_n,
+        number::complete::{le_u16, le_u32},
+        sequence::{terminated, tuple},
+        IResult,
+    };
+
+    use crate::plb::le_u32_as_usize;
+
+    pub fn le_u16_length_c_string(input: &[u8]) -> IResult<&[u8], &str> {
+        let (input, length) = le_u16(input)?;
+        assert!(length > 0);
+        map_res(terminated(take(length - 1), tag("\0")), std::str::from_utf8)(input)
+    }
+
+    pub fn animation(input: &[u8]) -> IResult<&[u8], (&str, &[u8])> {
+        let (input, _) = tag("BTSA")(input)?;
+        let (input, name) = le_u16_length_c_string(input)?;
+        let (input, _unknown0) = le_u32(input)?;
+        let (input, _unknown1) = le_u32(input)?;
+        let (input, _root_joint) = le_u16_length_c_string(input)?;
+        let (input, data) = recognize(tuple((take_until("_dne"), tag("_dne"))))(input)?;
+        Ok((input, (name, data)))
+    }
+
+    pub fn apf(input: &[u8]) -> IResult<&[u8], Vec<(&str, &[u8])>> {
+        let (input, _) = tag("KAPA")(input)?;
+        let (input, count) = le_u32_as_usize(input)?;
+        log::trace!("count = {}", count);
+        many_m_n(count, count, animation)(input)
     }
 }
 
@@ -490,6 +539,29 @@ fn main() -> Result<(), BoxError> {
                     ppf.domain,
                 )?;
             }
+        }
+        SubCommand::ExtractApf { input, output } => {
+            let output = output.unwrap_or_else(|| {
+                let mut path = PathBuf::new();
+                path.push("output");
+                path
+            });
+
+            log::info!("file = {:?}", input);
+
+            std::fs::create_dir_all(&output)?;
+
+            let data = read_file(&input)?;
+            let animations = apf::apf(&data).map_err::<BoxError, _>(|_err| "Unable to.".into())?.1;
+
+            for (path, data) in animations {
+                write_file(&output.join(path.replace("\\", "/")), data)?;
+            }
+        }
+        SubCommand::ApfInfo { input } => {
+            let data = read_file(&input)?;
+            let animations = apf::apf(&data).map_err::<BoxError, _>(|_err| "Unable to.".into())?.1;
+            log::info!("There are {} animations in {:?}.", animations.len(), input);
         }
         SubCommand::MeshInfo { input } => {
             let data = read_file(&input)?;
