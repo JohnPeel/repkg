@@ -37,7 +37,7 @@ pub const BUMPLUMINANCE: PixelFormatFlags = PixelFormatFlags::BUMPLUMINANCE;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PixelFormat {
-    _size: u32,
+    pub _size: u32,
     pub flags: PixelFormatFlags,
     pub four_cc: [u8; 4],
     pub rgb_bit_count: u32,
@@ -185,7 +185,7 @@ bitflags! {
         const POSITIVEY = 0x00001000;
         const NEGATIVEY = 0x00002000;
         const POSITIVEZ = 0x00004000;
-        const NEGATIVEZ = 0x00008400;
+        const NEGATIVEZ = 0x00008000;
         const VOLUME    = 0x00200000;
     }
 }
@@ -246,20 +246,20 @@ pub const CUBEMAP_ALLFACES: Caps2 = Caps2 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Header {
-    _size: u32,
+    pub _size: u32,
     pub header_flags: HeaderFlags,
     pub height: u32,
     pub width: u32,
     pub pitch_or_linear_size: u32,
     pub depth: u32,
     pub mip_map_count: u32,
-    _reserved1: [u32; 11],
+    pub _reserved1: [u32; 11],
     pub pixel_format: PixelFormat,
     pub surface_flags: SurfaceFlags,
     pub caps2: Caps2,
-    _caps3: u32,
-    _caps4: u32,
-    _reserved2: u32,
+    pub _caps3: u32,
+    pub _caps4: u32,
+    pub _reserved2: u32,
 }
 
 impl Default for Header {

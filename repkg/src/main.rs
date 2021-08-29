@@ -10,7 +10,7 @@ use clap::{AppSettings, Clap};
 
 use dds::PixelFormat;
 use pkg::{Zpkg, ZpkgFile};
-use ppf::{AnimationInfo, Ppf, Script, Texture, TextureFormat, TextureType, DEFAULT_LANGUAGE};
+use ppf::{Ppf, Script, Texture, TextureFormat, TextureType, DEFAULT_LANGUAGE};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -84,12 +84,30 @@ trait DdsHeader {
 
 impl<'a> DdsHeader for Texture<'a> {
     fn dds_header(&self) -> Result<Vec<u8>, BoxError> {
-        let mut header: dds::Header = dds::Header::default();
-
-        header.height = self.height as u32;
-        header.width = self.width as u32;
-        header.mip_map_count = self.mipmap_levels as u32;
-        header.depth = 1;
+        let mut header: dds::Header = dds::Header {
+            height: self.height as u32,
+            width: self.width as u32,
+            depth: 1,
+            mip_map_count: self.mipmap_levels as u32,
+            pixel_format: match self.format {
+                TextureFormat::A8R8G8B8 => PixelFormat::A8R8G8B8,
+                TextureFormat::R8G8B8 => PixelFormat::R8G8B8, // FIXME: OpenGL types point to X8R8G8B8, but LoadTextureFromDDSStream points to R8G8B8
+                TextureFormat::A4R4G4B4 => PixelFormat::A4R4G4B4,
+                TextureFormat::A1R5G5B5 => PixelFormat::A1R5G5B5,
+                TextureFormat::X1R5G5B5 => PixelFormat::X1R5G5B5,
+                TextureFormat::R5G6B5 => PixelFormat::R5G6B5,
+                TextureFormat::A8 => PixelFormat::A8,
+                TextureFormat::L8 => PixelFormat::L8, // FIXME: LoadTextureFromDDSStream loads this from A8 dds header.
+                TextureFormat::AL8 => unimplemented!(), // FIXME: Possibly A8L8_ALT or A4L4.
+                TextureFormat::DXT1 => PixelFormat::DXT1,
+                TextureFormat::DXT3 => PixelFormat::DXT3,
+                TextureFormat::DXT5 => PixelFormat::DXT5,
+                TextureFormat::V8U8 => PixelFormat::V8U8,
+                TextureFormat::V16U16 => PixelFormat::V16U16,
+                TextureFormat::PAL8 => PixelFormat::from_tuple((dds::PAL8, 0, 0, 0, 0, 0)), // FIXME: This is wrong, according to the game generated PAL8 textures.
+            },
+            ..Default::default()
+        };
 
         if self.mipmap_levels > 1 {
             header.header_flags.insert(dds::HEADER_FLAGS_MIPMAP);
@@ -110,54 +128,7 @@ impl<'a> DdsHeader for Texture<'a> {
             (self.width as u32 * header.pixel_format.rgb_bit_count + 7) / 8
         };
 
-        header.pixel_format = texture_format_to_pixel_format(self.format);
-
         Ok(bincode::serialize(&header)?)
-    }
-}
-
-fn texture_format_to_pixel_format(format: TextureFormat) -> PixelFormat {
-    match format {
-        TextureFormat::A8R8G8B8 => PixelFormat::A8R8G8B8,
-        TextureFormat::R8G8B8 => PixelFormat::R8G8B8, // FIXME: OpenGL types point to X8R8G8B8, but LoadTextureFromDDSStream points to R8G8B8
-        TextureFormat::A4R4G4B4 => PixelFormat::A4R4G4B4,
-        TextureFormat::A1R5G5B5 => PixelFormat::A1R5G5B5,
-        TextureFormat::X1R5G5B5 => PixelFormat::X1R5G5B5,
-        TextureFormat::R5G6B5 => PixelFormat::R5G6B5,
-        TextureFormat::A8 => PixelFormat::A8,
-        TextureFormat::L8 => PixelFormat::L8, // FIXME: LoadTextureFromDDSStream loads this from A8 dds header.
-        TextureFormat::AL8 => unimplemented!(), // FIXME: Possibly A8L8_ALT or A4L4.
-        TextureFormat::DXT1 => PixelFormat::DXT1,
-        TextureFormat::DXT3 => PixelFormat::DXT3,
-        TextureFormat::DXT5 => PixelFormat::DXT5,
-        TextureFormat::V8U8 => PixelFormat::V8U8,
-        TextureFormat::V16U16 => PixelFormat::V16U16,
-        TextureFormat::PAL8 => PixelFormat::from_tuple((dds::PAL8, 0, 0, 0, 0, 0)),
-    }
-}
-
-fn pixel_format_to_texture_format(format: PixelFormat) -> TextureFormat {
-    if format.flags == dds::PAL8 {
-        log::info!("{:x?}", format);
-    }
-
-    match format {
-        PixelFormat::A8R8G8B8 => TextureFormat::A8R8G8B8,
-        PixelFormat::R8G8B8 => TextureFormat::R8G8B8,
-        PixelFormat::A4R4G4B4 => TextureFormat::A4R4G4B4,
-        PixelFormat::A1R5G5B5 => TextureFormat::A1R5G5B5,
-        PixelFormat::X1R5G5B5 => TextureFormat::X1R5G5B5,
-        PixelFormat::R5G6B5 => TextureFormat::R5G6B5,
-        PixelFormat::A8 => TextureFormat::A8,
-        PixelFormat::L8 => TextureFormat::L8,
-        //TextureFormat::AL8 => unimplemented!(),
-        PixelFormat::DXT1 => TextureFormat::DXT1,
-        PixelFormat::DXT3 => TextureFormat::DXT3,
-        PixelFormat::DXT5 => TextureFormat::DXT5,
-        PixelFormat::V8U8 => TextureFormat::V8U8,
-        PixelFormat::V16U16 => TextureFormat::V16U16,
-        _ if format.flags == dds::PAL8 => TextureFormat::PAL8,
-        _ => unimplemented!("{:x?}", format),
     }
 }
 
@@ -387,173 +358,7 @@ fn main() -> Result<(), BoxError> {
                 write_file(&output.join(path), &data)?;
             }
         }
-        SubCommand::CreatePpf { input, output } => {
-            let input = input.canonicalize()?;
-            let output = output.unwrap_or_else(|| {
-                let mut path = PathBuf::new();
-                path.push(input.file_name().unwrap());
-                path
-            });
-            let append_input = |path: &str| -> String {
-                input
-                    .join(path)
-                    .to_str()
-                    .expect("Unable to convert to string.")
-                    .to_string()
-            };
-            if !input.is_dir() {
-                return Err("Input must be a directory.".into());
-            }
-
-            log::info!("input = {:?}", input);
-            log::info!("output = {:?}", output);
-
-            let mut writer = BufWriter::new(File::create(&output)?);
-
-            writer.write_all(&[0x50, 0x50, 0x41, 0x4B, 0xFD, 0xFD, 0x01, 0x00])?;
-
-            let textures: Vec<PathBuf> = glob::glob(&append_input("textures/**/*.dds"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .filter(|path| !path.file_name().unwrap().to_str().unwrap().starts_with("frame_"))
-                .collect();
-
-            log::info!("Texture count: {}", textures.len());
-
-            writer.write_all(&(textures.len() as u16).to_le_bytes())?;
-            for game_texture in textures {
-                let mut buffer: Vec<u8> = vec![0; 12];
-
-                buffer.extend_from_slice(&1u32.to_le_bytes());
-                if game_texture.is_dir() {
-                    buffer.extend_from_slice(&1u32.to_le_bytes());
-                } else {
-                    buffer.extend_from_slice(&0u32.to_le_bytes());
-                }
-                buffer.extend_from_slice(&[0; 20]);
-
-                if let Some(path) = game_texture.strip_prefix(&input.join("textures"))?.to_str() {
-                    buffer.extend_from_slice(&(path.len() as u16 + 1).to_le_bytes());
-                    buffer.extend_from_slice(path.as_bytes());
-                    buffer.push(0);
-                }
-
-                let textures = if game_texture.is_dir() {
-                    let metadata: AnimationInfo =
-                        serde_json::from_reader(BufReader::new(File::open(game_texture.join("metadata.json"))?))?;
-
-                    buffer.extend_from_slice(&(metadata.frame_count as u32).to_le_bytes());
-                    buffer.extend_from_slice(&metadata.start_frame.to_le_bytes());
-                    buffer.extend_from_slice(&metadata.loop_frame.to_le_bytes());
-                    buffer.extend_from_slice(&0f32.to_le_bytes());
-                    buffer.extend_from_slice(&metadata.frame_rate.to_le_bytes());
-                    buffer.extend_from_slice(&(metadata.play_mode as u32).to_le_bytes());
-                    buffer.extend_from_slice(&(metadata.playing as u8).to_le_bytes());
-                    buffer.extend_from_slice(&[0xCD, 0xCD, 0xCD]);
-
-                    (0..metadata.frame_count)
-                        .map(|frame| game_texture.join(format!("frame_{}.dds", frame)))
-                        .collect()
-                } else {
-                    vec![game_texture]
-                };
-
-                for texture in textures {
-                    let data = read_file(&texture)?;
-
-                    let (header, data) = data.split_at(size_of::<dds::Header>() + 4);
-
-                    let dds: dds::Header = bincode::deserialize(&header[4..])?;
-                    let format = pixel_format_to_texture_format(dds.pixel_format);
-                    let type_ = if dds.caps2.contains(dds::CUBEMAP_ALLFACES) {
-                        TextureType::Cubemap
-                    } else {
-                        TextureType::Bitmap
-                    };
-
-                    buffer.extend_from_slice(&0u32.to_le_bytes());
-                    buffer.extend_from_slice(&(format as u32).to_le_bytes());
-                    buffer.extend_from_slice(&(type_ as u32).to_le_bytes());
-                    buffer.extend_from_slice(&0u32.to_le_bytes()); // FIXME: Flags?
-                    buffer.extend_from_slice(&(dds.width as u32).to_le_bytes());
-                    buffer.extend_from_slice(&(dds.height as u32).to_le_bytes());
-                    buffer.extend_from_slice(&(dds.mip_map_count as u32).to_le_bytes());
-                    buffer.extend_from_slice(&[0; 16]);
-                    buffer.extend_from_slice(data);
-                }
-
-                writer.write_all(&[0x20, 0x58, 0x54, 0x31])?;
-                writer.write_all(&(buffer.len() as u32).to_le_bytes())?;
-                writer.write_all(&buffer)?;
-            }
-
-            writer.write_all(b"MPAK")?;
-
-            let meshes: Vec<PathBuf> = glob::glob(&append_input("meshes/**/*.plb"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?;
-            log::info!("Mesh count: {}", meshes.len());
-
-            writer.write_all(&(meshes.len() as u16).to_le_bytes())?;
-            for mesh in meshes {
-                let data = read_file(&mesh)?;
-
-                if let Some(path) = mesh.strip_prefix(&input.join("meshes"))?.to_str() {
-                    writer.write_all(&(path.len() as u16 + 1).to_le_bytes())?;
-                    writer.write_all(path.as_bytes())?;
-                    writer.write_all(&[0x00])?;
-                }
-
-                writer.write_all(&(data.len() as u32).to_le_bytes())?;
-                writer.write_all(&data)?;
-            }
-
-            writer.write_all(&[0xFC, 0xFC])?;
-            writer.write_all(&1u16.to_le_bytes())?;
-
-            let variables: Vec<PathBuf> = glob::glob(&append_input("variables/**/*.lua"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?;
-            log::info!("Variables count: {}", variables.len());
-
-            writer.write_all(&(variables.len() as u16).to_le_bytes())?;
-            for variable in variables {
-                let data = read_file(&variable)?;
-
-                if let Some(path) = variable.strip_prefix(&input.join("variables"))?.to_str() {
-                    writer.write_all(&(path.len() as u16 - 4 + 1).to_le_bytes())?;
-                    writer.write_all((&path[..path.len() - 4]).as_bytes())?;
-                    writer.write_all(&[0x00])?;
-                }
-
-                writer.write_all(&(data.len() as u32).to_le_bytes())?;
-                writer.write_all(&data)?;
-            }
-
-            let scripts: Vec<PathBuf> = glob::glob(&append_input("scripts/**/*.lua"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?;
-            log::info!("Scripts count: {}", scripts.len());
-
-            writer.write_all(&(scripts.len() as u16).to_le_bytes())?;
-            for script in scripts {
-                let data = read_file(&script)?;
-
-                if let Some(path) = script.strip_prefix(&input.join("scripts"))?.to_str() {
-                    writer.write_all(&(path.len() as u16 + 1).to_le_bytes())?;
-                    writer.write_all(path.as_bytes())?;
-                    writer.write_all(&[0x00])?;
-                }
-
-                writer.write_all(&(data.len() as u32).to_le_bytes())?;
-                writer.write_all(&data)?;
-            }
-
-            let domain = input.join("domain.bin");
-            let data = read_file(&domain)?;
-            writer.write_all(&data)?;
-        }
+        SubCommand::CreatePpf { input: _, output: _ } => todo!(),
         SubCommand::ExtractPpf { input, output } => {
             let output = output.unwrap_or_else(|| {
                 let mut path = PathBuf::new();
@@ -574,7 +379,9 @@ fn main() -> Result<(), BoxError> {
                 let output = if id == DEFAULT_LANGUAGE {
                     output.clone()
                 } else {
-                    output.join("languages").join(format!("{:?}", id).to_lowercase())
+                    let file_stem = output.file_stem().and_then(OsStr::to_str).unwrap();
+                    let file_ext = output.file_stem().and_then(OsStr::to_str).unwrap();
+                    output.with_file_name(format!("{}_{}{}", file_stem, id.to_string().to_lowercase(), file_ext))
                 };
 
                 for (index, game_texture) in game_textures.into_iter().enumerate() {
@@ -630,15 +437,21 @@ fn main() -> Result<(), BoxError> {
                 write_file(&output.join(path), data)?;
             }
 
-            log::info!("Domain first 10 bytes = {:02x?}", &ppf.domain[..10]);
-            // FIXME: There are multiple plb files here, we need to parse them out. Work started in next SubCommand.
-            write_file(
-                &output.join(format!(
-                    "levels/{}.plb",
-                    input.file_stem().and_then(OsStr::to_str).unwrap()
-                )),
-                ppf.domain,
-            )?;
+            log::info!(
+                "Domain first {} bytes = {:02x?}",
+                ppf.domain.len().min(10),
+                &ppf.domain[..ppf.domain.len().min(10)]
+            );
+            if !ppf.domain.is_empty() {
+                // FIXME: There are multiple plb files here, we need to parse them out. Work started in next SubCommand. Might be worth looking for magic numbers rather than parsing.
+                write_file(
+                    &output.join(format!(
+                        "levels/{}.plb",
+                        input.file_stem().and_then(OsStr::to_str).unwrap()
+                    )),
+                    ppf.domain,
+                )?;
+            }
         }
         SubCommand::MeshInfo { input } => {
             let data = read_file(&input)?;

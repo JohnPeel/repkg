@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use num_derive::{FromPrimitive, ToPrimitive};
 #[allow(unused_imports)]
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -363,6 +365,12 @@ pub enum Language {
     French,
     German,
     Nonsense,
+}
+
+impl Display for Language {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as Debug>::fmt(self, f)
+    }
 }
 
 pub const DEFAULT_LANGUAGE: Language = Language::English;
