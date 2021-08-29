@@ -24,3 +24,5 @@ glob = "0.3.0"
 ppf = { path = "../ppf" }
 pkg = { path = "../pkg" }
 dds = { path = "../dds" }
+
+image = "0.23.14"

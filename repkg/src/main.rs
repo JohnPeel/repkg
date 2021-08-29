@@ -1,7 +1,7 @@
 use std::{
     ffi::OsStr,
     fs::File,
-    io::{BufReader, BufWriter, Read, Write},
+    io::{BufReader, BufWriter, LineWriter, Read, Write},
     mem::size_of,
     path::{Path, PathBuf},
 };
@@ -9,8 +9,9 @@ use std::{
 use clap::{AppSettings, Clap};
 
 use dds::PixelFormat;
+use image::{GrayAlphaImage, RgbaImage};
 use pkg::{Zpkg, ZpkgFile};
-use ppf::{Ppf, Script, Texture, TextureFormat, TextureType, DEFAULT_LANGUAGE};
+use ppf::{Ppf, Script, Texture, TextureFormat, TextureType};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -352,7 +353,7 @@ fn main() -> Result<(), BoxError> {
 
             for ZpkgFile { path, data } in zpkg.files {
                 let path = match path {
-                    _ if path.starts_with('/') => &path[1..path.len() - 1],
+                    _ if path.starts_with('/') => &path[1..path.len()],
                     _ => &path,
                 };
                 write_file(&output.join(path), &data)?;
@@ -366,54 +367,91 @@ fn main() -> Result<(), BoxError> {
                 path
             });
 
+            log::info!("file = {:?}", input);
+
             std::fs::create_dir_all(&output)?;
 
             let data = read_file(&input)?;
             let ppf = Ppf::from_slice(&data)?;
 
-            for (id, game_textures) in ppf
-                .languages
-                .into_iter()
-                .chain(vec![(DEFAULT_LANGUAGE, ppf.game_textures)])
-            {
-                let output = if id == DEFAULT_LANGUAGE {
-                    output.clone()
-                } else {
-                    let file_stem = output.file_stem().and_then(OsStr::to_str).unwrap();
-                    let file_ext = output.file_stem().and_then(OsStr::to_str).unwrap();
-                    output.with_file_name(format!("{}_{}{}", file_stem, id.to_string().to_lowercase(), file_ext))
+            for (index, game_texture) in ppf.game_textures.into_iter().enumerate() {
+                let path = match game_texture.path {
+                    Some(path) => path.replace("\\", "/"),
+                    None => format!("texture_{}.dds", index),
                 };
+                let mut output = output.join(path);
 
-                for (index, game_texture) in game_textures.into_iter().enumerate() {
-                    let path = match game_texture.path {
-                        Some(path) => path.replace("\\", "/"),
-                        None => format!("texture_{}.dds", index),
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+
+                let texture_count = game_texture.textures.len();
+                if let Some(animation_info) = game_texture.animation_info {
+                    let mut file_stem = output.file_stem().and_then(OsStr::to_str).unwrap();
+                    file_stem = &file_stem[..file_stem.len() - 2];
+
+                    let mut writer = LineWriter::new(File::create(output.with_extension("atx"))?);
+                    writer.write_all(format!("numframes\t{}\r\n", animation_info.frame_count).as_bytes())?;
+                    writer.write_all(format!("startframe\t{}\r\n", animation_info.start_frame).as_bytes())?;
+                    writer.write_all(format!("framerate\t{}\r\n", animation_info.frame_rate).as_bytes())?;
+
+                    for index in 0..texture_count {
+                        writer.write_all(format!("texture\t\t{}{:02}\r\n", file_stem, index + 1).as_bytes())?;
+                    }
+
+                    writer.write_all(
+                        format!("playmode\t{}", animation_info.play_mode.to_string().to_lowercase()).as_bytes(),
+                    )?;
+
+                    let file_ext = output.extension().and_then(OsStr::to_str).unwrap();
+                    output = output.with_file_name(format!("{}.{}", file_stem, file_ext));
+                }
+
+                for (index, texture) in game_texture.textures.into_iter().enumerate() {
+                    let output = if texture_count > 1 {
+                        let file_stem = output.file_stem().and_then(OsStr::to_str).unwrap();
+                        let file_ext = output.extension().and_then(OsStr::to_str).unwrap();
+                        output.with_file_name(format!("{}{:02}.{}", file_stem, index + 1, file_ext))
+                    } else {
+                        output.clone()
                     };
-                    let output = output.join(path);
 
-                    let texture_count = game_texture.textures.len();
-                    for (index, texture) in game_texture.textures.into_iter().enumerate() {
-                        let output = if texture_count > 1 {
-                            let file_stem = output.file_stem().and_then(OsStr::to_str).unwrap();
-                            let file_ext = output.extension().and_then(OsStr::to_str).unwrap();
-                            output.with_file_name(format!("{}_{:02}.{}", file_stem, index, file_ext))
-                        } else {
-                            output.clone()
-                        };
-
-                        let mut buffer = Vec::with_capacity(4 + size_of::<dds::Header>() + texture.texture.len());
-                        buffer.extend_from_slice(&dds::MAGIC.to_le_bytes());
-                        buffer.extend_from_slice(&texture.dds_header()?);
-                        if let Some(palette) = texture.palette {
-                            for item in palette {
-                                let mut bytes = item.to_le_bytes();
-                                bytes.swap(1, 3);
-                                buffer.extend_from_slice(&bytes);
-                            }
+                    match texture.format {
+                        TextureFormat::A8R8G8B8 => {
+                            RgbaImage::from_raw(texture.width as u32, texture.height as u32, texture.texture.to_vec())
+                                .unwrap()
+                                .save(output.with_extension("tga"))?;
                         }
-                        buffer.extend_from_slice(texture.texture);
+                        TextureFormat::DXT1 | TextureFormat::DXT3 | TextureFormat::DXT5 => {
+                            let mut buffer = Vec::with_capacity(4 + size_of::<dds::Header>() + texture.texture.len());
+                            buffer.extend_from_slice(&dds::MAGIC.to_le_bytes());
+                            buffer.extend_from_slice(&texture.dds_header()?);
+                            if let Some(palette) = texture.palette {
+                                for item in palette {
+                                    let mut bytes = item.to_le_bytes();
+                                    bytes.swap(1, 3);
+                                    buffer.extend_from_slice(&bytes);
+                                }
+                            }
+                            buffer.extend_from_slice(texture.texture);
 
-                        write_file(&output, &buffer)?;
+                            write_file(output, &buffer)?;
+
+                            /*
+                            image::load_from_memory_with_format(&buffer, image::ImageFormat::Dds)?
+                                .save_with_format(output.with_extension("tga"), image::ImageFormat::Tga)?;
+                            */
+                        }
+                        TextureFormat::V8U8 => {
+                            GrayAlphaImage::from_raw(
+                                texture.width as u32,
+                                texture.height as u32,
+                                texture.texture.to_vec(),
+                            )
+                            .unwrap()
+                            .save(output.with_extension("tga"))?;
+                        }
+                        _ => unimplemented!("format = {:?}", texture.format),
                     }
                 }
             }
@@ -437,7 +475,7 @@ fn main() -> Result<(), BoxError> {
                 write_file(&output.join(path), data)?;
             }
 
-            log::info!(
+            log::trace!(
                 "Domain first {} bytes = {:02x?}",
                 ppf.domain.len().min(10),
                 &ppf.domain[..ppf.domain.len().min(10)]
