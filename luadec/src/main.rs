@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{AppSettings, Clap};
+use clap::Parser;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -697,9 +697,8 @@ mod code_generation {
     }
 }
 
-#[derive(Clap)]
-#[clap(version = "0.0.1", author = "John Peel <john@dgby.org>")]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
+#[clap(author, version, about = None, long_about = None)]
 struct Opts {
     #[clap(parse(from_os_str))]
     input: PathBuf,

@@ -1,21 +1,24 @@
 # Repackager
 
 ```
-repkg 0.0.1
-
+repkg 0.1.0
 John Peel <john@dgby.org>
 
 USAGE:
-    repkg [FLAGS] <SUBCOMMAND>
+    repkg [OPTIONS] <SUBCOMMAND>
 
-FLAGS:
+OPTIONS:
     -h, --help       Print help information
     -v, --verbose
     -V, --version    Print version information
 
 SUBCOMMANDS:
+    apf-info
+    create-ppf
     decompress
+    extract-apf
     extract-pkg
     extract-ppf
     help           Print this message or the help of the given subcommand(s)
+    mesh-info
 ```

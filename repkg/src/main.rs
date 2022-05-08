@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{AppSettings, Clap};
+use clap::Parser;
 
 use dds::PixelFormat;
 use image::{GrayAlphaImage, RgbaImage};
@@ -16,9 +16,8 @@ use ppf::{Ppf, Script, Texture, TextureFormat, TextureType};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-#[derive(Clap)]
-#[clap(version = "0.0.1", author = "John Peel <john@dgby.org>")]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
+#[clap(author, version, about = None, long_about = None)]
 struct Opts {
     #[clap(short = 'v', long)]
     verbose: bool,
@@ -26,7 +25,7 @@ struct Opts {
     subcommand: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum SubCommand {
     Decompress {
         #[clap(parse(from_os_str))]
