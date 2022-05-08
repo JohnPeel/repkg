@@ -524,8 +524,7 @@ mod code_generation {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    pub fn to_nodes(instructions: Vec<Instruction>, constants: &Constants) -> Vec<Node> {
+    pub fn to_nodes(instructions: Vec<Instruction>, _constants: &Constants) -> Vec<Node> {
         let mut queue: VecDeque<Instruction> = instructions.into_iter().rev().collect();
         let mut unused: VecDeque<Node> = VecDeque::new();
         let mut terminated = Vec::new();
@@ -558,7 +557,7 @@ mod code_generation {
                     .into_iter()
                     .rev()
                     .collect();
-                children.extend(to_nodes(jump, constants).into_iter());
+                children.extend(to_nodes(jump, _constants).into_iter());
             }
 
             let node = Node { instruction, children };
