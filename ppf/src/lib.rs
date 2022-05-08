@@ -206,12 +206,10 @@ pub(crate) mod parser {
         pub fn game_texture(input: &[u8]) -> IResult<&[u8], GameTexture<'_>> {
             let (input, _) = verify(le_u32, |b: &u32| b == &0x31545820)(input)?;
             let (input, size) = util::le_u32_as_usize(input)?;
-
-            let start = input.len();
+            let (input, remaining) = input.split_at(size);
             let (input, game_texture) = v0::game_texture(input)?;
-            assert_eq!(size, start - input.len());
-
-            Ok((input, game_texture))
+            assert_eq!(input.len(), 0);
+            Ok((remaining, game_texture))
         }
     }
 
@@ -241,12 +239,10 @@ pub(crate) mod parser {
             log::trace!("language = {:?}", language);
             let (input, block_size) = map_res(le_u32, |size| Result::<usize, Infallible>::Ok(size as usize))(input)?;
             log::trace!("language_size = {}", block_size);
-
-            let block_start = input.len();
+            let (input, remaining) = input.split_at(block_size);
             let (input, textures) = game_textures(input, version)?;
-            assert_eq!(block_size, block_start - input.len());
-
-            Ok((input, (language, textures)))
+            assert_eq!(input.len(), 0);
+            Ok((remaining, (language, textures)))
         };
         many0(language)(input)
     }
@@ -462,7 +458,6 @@ pub struct AnimationInfo {
     pub playing: bool,
 }
 
-#[derive(Debug)]
 pub struct Texture<'a> {
     pub format: TextureFormat,
     pub type_: TextureType,
@@ -481,13 +476,11 @@ pub struct GameTexture<'a> {
     pub textures: Vec<Texture<'a>>,
 }
 
-#[derive(Debug)]
 pub struct Script<'a> {
     pub path: Option<&'a str>,
     pub data: &'a [u8],
 }
 
-#[derive(Debug)]
 pub struct Ppf<'a> {
     pub version: Version,
     pub languages: Vec<(Language, Vec<GameTexture<'a>>)>,
@@ -497,6 +490,65 @@ pub struct Ppf<'a> {
     pub variables: Vec<(&'a str, &'a [u8])>,
     pub scripts: Vec<Script<'a>>,
     pub domain: &'a [u8],
+}
+
+struct TruncatedDebug<'a, T, const N: usize>(&'a [T]);
+
+impl<'a, T: Debug, const N: usize> Debug for TruncatedDebug<'a, T, N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for i in &self.0[..N] {
+            write!(f, "{:?}, ", i)?;
+        }
+        write!(f, "<truncated>, ")?;
+        for i in &self.0[self.0.len() - N..self.0.len() - 1] {
+            write!(f, "{:?}, ", i)?;
+        }
+        write!(f, "{:?}]", &self.0[self.0.len() - 1])
+    }
+}
+
+impl<'a> Debug for Texture<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Texture")
+            .field("format", &self.format)
+            .field("type", &self.type_)
+            .field("flags", &self.flags)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("mipmap_levels", &self.mipmap_levels)
+            .field(
+                "palette",
+                &self.palette.as_ref().map(|p| TruncatedDebug::<_, 5>(&p[..])),
+            )
+            .field("size", &self.texture.len())
+            .field("texture", &TruncatedDebug::<_, 5>(self.texture))
+            .finish()
+    }
+}
+
+impl<'a> Debug for Script<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Script")
+            .field("path", &self.path)
+            .field("data", &TruncatedDebug::<_, 5>(self.data))
+            .finish()
+    }
+}
+
+impl<'a> Debug for Ppf<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ppf")
+            .field("version", &self.version)
+            .field("languages", &self.languages)
+            .field("game_textures", &self.game_textures)
+            .field("meshes", &self.meshes)
+            .field("scripts_version", &self.scripts_version)
+            .field("variables", &self.variables)
+            .field("scripts", &self.scripts)
+            .field("domain", &TruncatedDebug::<_, 25>(self.domain))
+            .finish()
+    }
 }
 
 impl<'a> Ppf<'a> {

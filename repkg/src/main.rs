@@ -10,6 +10,7 @@ use clap::{AppSettings, Clap};
 
 use dds::PixelFormat;
 use image::{GrayAlphaImage, RgbaImage};
+use log::debug;
 use pkg::{Zpkg, ZpkgFile};
 use ppf::{Ppf, Script, Texture, TextureFormat, TextureType};
 
@@ -50,6 +51,8 @@ enum SubCommand {
         input: PathBuf,
         #[clap(short = 'o', long, parse(from_os_str))]
         output: Option<PathBuf>,
+        #[clap(short = 'd', long)]
+        debug_texture: Option<String>,
     },
     ExtractApf {
         #[clap(parse(from_os_str))]
@@ -409,7 +412,11 @@ fn main() -> Result<(), BoxError> {
             }
         }
         SubCommand::CreatePpf { input: _, output: _ } => todo!(),
-        SubCommand::ExtractPpf { input, output } => {
+        SubCommand::ExtractPpf {
+            input,
+            output,
+            debug_texture,
+        } => {
             let output = output.unwrap_or_else(|| {
                 let mut path = PathBuf::new();
                 path.push("output");
@@ -424,8 +431,14 @@ fn main() -> Result<(), BoxError> {
             let ppf = Ppf::from_slice(&data)?;
 
             for (index, game_texture) in ppf.game_textures.into_iter().enumerate() {
+                if let (Some(path), Some(debug_texture)) = (game_texture.path, &debug_texture) {
+                    if path.contains(debug_texture) {
+                        debug!("{:#?}", game_texture);
+                    }
+                }
+
                 let path = match game_texture.path {
-                    Some(path) => path.replace("\\", "/"),
+                    Some(path) => path.replace('\\', "/"),
                     None => format!("texture_{}.dds", index),
                 };
                 let mut output = output.join(path);
@@ -506,19 +519,19 @@ fn main() -> Result<(), BoxError> {
             }
 
             for (path, data) in ppf.meshes {
-                write_file(&output.join(path.replace("\\", "/")), data)?;
+                write_file(&output.join(path.replace('\\', "/")), data)?;
             }
 
             for (path, data) in ppf.variables {
                 write_file(
-                    &output.join(format!("scripts/{}.lua", path.replace("\\", "/").replace(".", "/"))),
+                    &output.join(format!("scripts/{}.lua", path.replace('\\', "/").replace('.', "/"))),
                     data,
                 )?;
             }
 
             for (index, Script { path, data }) in ppf.scripts.into_iter().enumerate() {
                 let path = match path {
-                    Some(path) => path.replace("\\", "/"),
+                    Some(path) => path.replace('\\', "/"),
                     None => format!("script_{}.lua", index),
                 };
                 write_file(&output.join(path), data)?;
@@ -556,7 +569,7 @@ fn main() -> Result<(), BoxError> {
             let animations = apf::apf(&data).map_err::<BoxError, _>(|_err| "Unable to.".into())?.1;
 
             for (path, data) in animations {
-                write_file(&output.join(path.replace("\\", "/")), data)?;
+                write_file(&output.join(path.replace('\\', "/")), data)?;
             }
         }
         SubCommand::ApfInfo { input } => {

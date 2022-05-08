@@ -524,6 +524,7 @@ mod code_generation {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     pub fn to_nodes(instructions: Vec<Instruction>, constants: &Constants) -> Vec<Node> {
         let mut queue: VecDeque<Instruction> = instructions.into_iter().rev().collect();
         let mut unused: VecDeque<Node> = VecDeque::new();
