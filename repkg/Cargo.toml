@@ -10,7 +10,8 @@ license = "MIT"
 log = "0.4"
 env_logger = "0.9"
 
-nom = "7.1"
+binrw = "*"
+
 clap = { version = "3.1", features = ["derive"] }
 num-traits = "0.2"
 

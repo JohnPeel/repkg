@@ -1,6 +1,10 @@
 [workspace]
 members = [
+    "common",
+    "lpf",
+    "mpf",
     "ppf",
+    "tpf",
     "pkg",
     "dds",
     "luadec",
