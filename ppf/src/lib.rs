@@ -31,19 +31,3 @@ impl fmt::Debug for Ppf {
             .finish()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::{fs::File, io::BufReader};
-
-    use binrw::BinRead;
-
-    use super::*;
-
-    #[test]
-    fn example() {
-        let mut reader =
-            BufReader::new(File::open("/home/john/psychonauts/workresource/pclevelpackfiles/wwma.ppf").unwrap());
-        let _ppf = dbg!(Ppf::read(&mut reader).unwrap());
-    }
-}
