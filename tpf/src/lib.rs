@@ -5,6 +5,8 @@ use std::{
 
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, ReadOptions};
 
+use common::{Path, Size};
+
 pub const DEFAULT_LANGUAGE: LanguageId = LanguageId::English;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,6 +22,12 @@ pub enum LanguageId {
 impl Default for LanguageId {
     fn default() -> Self {
         DEFAULT_LANGUAGE
+    }
+}
+
+impl Size for LanguageId {
+    fn size(&self) -> usize {
+        2
     }
 }
 
@@ -45,6 +53,12 @@ pub enum TextureFormat {
     PAL8,
 }
 
+impl Size for TextureFormat {
+    fn size(&self) -> usize {
+        4
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[binrw]
 #[brw(repr = u32)]
@@ -53,6 +67,12 @@ pub enum TextureType {
     Cubemap,
     VolumeMap,
     DepthBuffer,
+}
+
+impl Size for TextureType {
+    fn size(&self) -> usize {
+        4
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -69,6 +89,12 @@ pub enum PlayMode {
     Stop,
 }
 
+impl Size for PlayMode {
+    fn size(&self) -> usize {
+        4
+    }
+}
+
 impl fmt::Display for PlayMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f)
@@ -83,6 +109,12 @@ pub const DEFAULT_VERSION: Version = Version::V0;
 pub enum Version {
     V0 = 0,
     V1,
+}
+
+impl Size for Version {
+    fn size(&self) -> usize {
+        4
+    }
 }
 
 impl Default for Version {
@@ -110,6 +142,12 @@ pub struct AnimationInfo {
     pub playing: bool,
 }
 
+impl Size for AnimationInfo {
+    fn size(&self) -> usize {
+        28
+    }
+}
+
 #[binrw]
 pub struct Palette {
     #[br(temp)]
@@ -123,6 +161,12 @@ pub struct Palette {
 impl fmt::Debug for Palette {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Palette").finish()
+    }
+}
+
+impl Size for Palette {
+    fn size(&self) -> usize {
+        2 + self.data.size()
     }
 }
 
@@ -145,7 +189,18 @@ pub struct Texture {
     #[br(if(format == TextureFormat::PAL8))]
     pub palette: Option<Palette>,
     #[br(count = calculate_texture_size(format, type_, width, height, mipmaps))]
+    #[bw(assert(data.len() == calculate_texture_size(*format, *type_, *width, *height, *mipmaps), "While writing Texture: Expected data length {}, found {}", calculate_texture_size(*format, *type_, *width, *height, *mipmaps), data.len()))]
     pub data: Vec<u8>,
+}
+
+impl Size for Texture {
+    fn size(&self) -> usize {
+        4 + self.format.size()
+            + self.type_.size()
+            + 32
+            + self.palette.size()
+            + calculate_texture_size(self.format, self.type_, self.width, self.height, self.mipmaps)
+    }
 }
 
 impl fmt::Debug for Texture {
@@ -164,8 +219,6 @@ impl fmt::Debug for Texture {
 
 pub mod v0 {
     use std::fmt;
-
-    use common::Path;
 
     use super::*;
 
@@ -199,18 +252,37 @@ pub mod v0 {
                 .finish()
         }
     }
+
+    impl GameTexture {
+        pub fn size(&self) -> usize {
+            40 + self.path.size() + self.animation_info.size() + self.textures.iter().map(Size::size).sum::<usize>()
+        }
+    }
 }
 
 pub mod v1 {
     use super::*;
 
-    #[derive(Debug)]
     #[binrw]
+    #[br(assert(size == game_texture.size() as u32, "While parsing v1::GameTexture: Expected size {}, found size {}.", size, game_texture.size()))]
     pub struct GameTexture {
-        #[br(try_map = |x: u32| x.try_into())]
-        #[bw(map = |x: &usize| *x as u32)]
-        pub size: usize,
+        #[br(temp)]
+        #[bw(calc = game_texture.size() as u32)]
+        size: u32,
+
         pub game_texture: v0::GameTexture,
+    }
+
+    impl fmt::Debug for GameTexture {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.game_texture.fmt(f)
+        }
+    }
+
+    impl GameTexture {
+        pub fn size(&self) -> usize {
+            self.game_texture.size() + 4
+        }
     }
 }
 
@@ -222,18 +294,39 @@ pub enum GameTexture {
     V1(v1::GameTexture),
 }
 
-#[derive(Debug)]
+impl Size for GameTexture {
+    fn size(&self) -> usize {
+        match self {
+            GameTexture::V0(game_texture) => game_texture.size(),
+            GameTexture::V1(game_texture) => game_texture.size() + 4, /* Can't forget the Magic */
+        }
+    }
+}
+
 #[binrw]
+#[br(assert(size == game_textures.iter().map(|x| x.size()).sum::<usize>() as u32 + 2, "While parsing Language: Expected size {}, found {}.", size, game_textures.size()))]
 pub struct Language {
     pub id: LanguageId,
-    #[br(try_map = |x: u32| x.try_into())]
-    #[bw(map = |x: &usize| *x as u32)]
-    pub size: usize,
-    #[br(try_map = |x: u16| x.try_into())]
-    #[bw(map = |x: &usize| *x as u16)]
-    pub count: usize,
+
+    #[br(temp)]
+    #[bw(calc = game_textures.iter().map(|x| x.size()).sum::<usize>() as u32 + 2)]
+    size: u32,
+
+    #[br(temp)]
+    #[bw(calc = game_textures.len() as u16)]
+    count: u16,
+
     #[br(count = count)]
     pub game_textures: Vec<GameTexture>,
+}
+
+impl fmt::Debug for Language {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Language")
+            .field("id", &self.id)
+            .field("game_textures", &self.game_textures)
+            .finish()
+    }
 }
 
 #[binrw]
@@ -242,6 +335,7 @@ pub struct TexturePackFile {
     #[br(try)]
     pub version: Option<Version>,
     #[br(parse_with = languages_parser)]
+    #[bw(assert(languages.is_empty(), "Writing is currently not supported with Languages."))]
     pub languages: Vec<Language>,
     #[br(temp)]
     #[bw(calc = game_textures.len() as u16)]

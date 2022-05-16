@@ -12,7 +12,7 @@ pub struct Mesh {
     #[bw(calc = data.len() as u32)]
     size: u32,
     #[br(count = size)]
-    // TODO: These are just blobs for now. We should probably reverse the format.
+    // TODO: These are just blobs for now. The format needs reversing.
     pub data: Vec<u8>,
 }
 

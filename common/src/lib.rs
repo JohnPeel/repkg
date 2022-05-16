@@ -26,3 +26,37 @@ impl fmt::Display for Path {
         fmt::Display::fmt(&self.path, f)
     }
 }
+
+pub trait Size {
+    fn size(&self) -> usize;
+}
+
+impl Size for u32 {
+    fn size(&self) -> usize {
+        4
+    }
+}
+
+impl<T: Size> Size for Option<T> {
+    fn size(&self) -> usize {
+        self.as_ref().map(|x| x.size()).unwrap_or(0)
+    }
+}
+
+impl<const N: usize> Size for [u32; N] {
+    fn size(&self) -> usize {
+        4 * N
+    }
+}
+
+impl<T: Size> Size for Vec<T> {
+    fn size(&self) -> usize {
+        self.iter().map(|x| x.size()).sum()
+    }
+}
+
+impl Size for Path {
+    fn size(&self) -> usize {
+        3 + self.path.len()
+    }
+}

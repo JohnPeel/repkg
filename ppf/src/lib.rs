@@ -1,6 +1,6 @@
 use std::fmt;
 
-use binrw::{binread, until_eof};
+use binrw::{binrw, until_eof};
 
 use lpf::LuaPackFile;
 use mpf::MeshPackFile;
@@ -11,8 +11,8 @@ pub use lpf::{v0::Script as ScriptV0, v1::Script as ScriptV1, Global, Script};
 pub use mpf::Mesh;
 pub use tpf::{GameTexture, Palette, Texture, TextureFormat, TextureType};
 
-#[binread]
-#[br(little, magic = b"PPAK")]
+#[binrw]
+#[brw(little, magic = b"PPAK")]
 pub struct Ppf {
     pub textures: TexturePackFile,
     pub meshes: MeshPackFile,
